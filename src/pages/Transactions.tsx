@@ -56,11 +56,33 @@ function recalcInMonth(all: Transaction[], year: number, month: number): Transac
   return all.map(t => map.get(t.id) ?? t);
 }
 
+const DEFAULT_WIDTHS: Record<string, number> = {
+  date: 120, startBalance: 90, endBalance: 90, amount: 90,
+  type: 125, category: 140, subCategory: 140,
+  paidTo: 140, comment: 140, bankText: 260, budgeted: 90,
+};
+
 export default function Transactions({ transactions, settings, onChange }: Props) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS);
+
+  function onResizeStart(key: string, e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = colWidths[key];
+    function onMove(ev: MouseEvent) {
+      setColWidths(w => ({ ...w, [key]: Math.max(50, startW + ev.clientX - startX) }));
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
 
   const years = Array.from(
     new Set([now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1,
@@ -212,19 +234,33 @@ export default function Transactions({ transactions, settings, onChange }: Props
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <table className="text-sm border-collapse min-w-full">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="w-28 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Date</th>
-              <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Start Bal</th>
-              <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">End Bal <span className="font-normal text-gray-400">(calc)</span></th>
-              <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Amount</th>
-              <th className="w-32 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Type</th>
-              <th className="w-36 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Category</th>
-              <th className="w-36 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Sub Category</th>
-              <th className="w-36 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Paid To</th>
-              <th className="w-36 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Comment</th>
-              <th className="w-64 px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200">Bank Text</th>
-              <th className="w-24 px-2 py-2 text-left text-xs font-semibold text-gray-600">Budgeted</th>
-              <th className="w-8"></th>
+            <tr className="bg-gray-50 border-b border-gray-200 select-none">
+              {([
+                ['date',         'Date'],
+                ['startBalance', 'Start Bal'],
+                ['endBalance',   'End Bal'],
+                ['amount',       'Amount'],
+                ['type',         'Type'],
+                ['category',     'Category'],
+                ['subCategory',  'Sub Category'],
+                ['paidTo',       'Paid To'],
+                ['comment',      'Comment'],
+                ['bankText',     'Bank Text'],
+                ['budgeted',     'Budgeted'],
+              ] as [string, string][]).map(([key, label]) => (
+                <th
+                  key={key}
+                  style={{ width: colWidths[key], minWidth: colWidths[key] }}
+                  className="relative px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 overflow-hidden"
+                >
+                  <span className="truncate block pr-2">{label}</span>
+                  <div
+                    className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                    onMouseDown={e => onResizeStart(key, e)}
+                  />
+                </th>
+              ))}
+              <th className="w-8 border-gray-200"></th>
             </tr>
           </thead>
           <tbody>
@@ -243,7 +279,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 }`}
               >
                 {/* Date */}
-                <td className="w-28 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.date, minWidth: colWidths.date }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <input
                     className="table-cell-input"
                     type="date"
@@ -253,7 +289,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* Start Balance — editable only on first row */}
-                <td className="w-24 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.startBalance, minWidth: colWidths.startBalance }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   {rowIdx === 0 ? (
                     <input
                       className="table-cell-input text-right"
@@ -268,7 +304,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* End Balance — always calculated */}
-                <td className="w-24 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.endBalance, minWidth: colWidths.endBalance }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <span className={`block text-right px-1 py-0.5 text-xs bg-gray-50 rounded ${
                     t.endBalance !== null && t.endBalance < 0 ? 'text-red-500' : 'text-gray-500'
                   }`}>
@@ -277,7 +313,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* Amount */}
-                <td className="w-24 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.amount, minWidth: colWidths.amount }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <input
                     className={`table-cell-input text-right ${
                       t.amount !== null && t.amount < 0 ? 'text-red-600' : 'text-green-700'
@@ -288,7 +324,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* Type */}
-                <td className="w-32 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.type, minWidth: colWidths.type }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <select className="table-cell-select" value={t.type}
                     onChange={e => updateField(t.id, 'type', e.target.value)}>
                     <option value=""></option>
@@ -297,7 +333,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* Category */}
-                <td className="w-36 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.category, minWidth: colWidths.category }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <select className="table-cell-select" value={t.category}
                     onChange={e => updateField(t.id, 'category', e.target.value)}>
                     <option value=""></option>
@@ -306,7 +342,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* Sub Category */}
-                <td className="w-36 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.subCategory, minWidth: colWidths.subCategory }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <select className="table-cell-select" value={t.subCategory}
                     onChange={e => updateField(t.id, 'subCategory', e.target.value)}>
                     <option value=""></option>
@@ -315,26 +351,26 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 </td>
 
                 {/* Paid To */}
-                <td className="w-36 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.paidTo, minWidth: colWidths.paidTo }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <input className="table-cell-input" value={t.paidTo}
                     onChange={e => updateField(t.id, 'paidTo', e.target.value)} />
                 </td>
 
                 {/* Comment */}
-                <td className="w-36 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.comment, minWidth: colWidths.comment }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <input className="table-cell-input" value={t.comment}
                     onChange={e => updateField(t.id, 'comment', e.target.value)} />
                 </td>
 
                 {/* Bank Text */}
-                <td className="w-64 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.bankText, minWidth: colWidths.bankText }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <input className="table-cell-input" value={t.bankText}
                     title={t.bankText}
                     onChange={e => updateField(t.id, 'bankText', e.target.value)} />
                 </td>
 
                 {/* Budgeted */}
-                <td className="w-24 px-1 py-0.5 border-r border-gray-100">
+                <td style={{ width: colWidths.budgeted, minWidth: colWidths.budgeted }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <select className="table-cell-select" value={t.budgeted}
                     onChange={e => updateField(t.id, 'budgeted', e.target.value)}>
                     <option value=""></option>
