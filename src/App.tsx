@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import Nav from './components/Nav';
 import Transactions from './pages/Transactions';
 import Analytics from './pages/Analytics';
+import Summary from './pages/Summary';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import type { AppData } from './types';
@@ -92,6 +93,9 @@ export default function App() {
                   settings={data.settings}
                   onChange={handleTransactionsChange}
                 />
+              } />
+              <Route path="/summary" element={
+                <Summary transactions={data.transactions} />
               } />
               <Route path="/analytics" element={
                 <Analytics transactions={data.transactions} />

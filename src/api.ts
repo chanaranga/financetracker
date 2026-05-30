@@ -45,4 +45,23 @@ export const api = {
 
   updateSettings: (s: DropdownSettings) =>
     request<DropdownSettings>('/api/settings', { method: 'PUT', body: JSON.stringify(s) }),
+
+  getSummary: (yearMonth: string) =>
+    request<SummaryData>(`/api/summary/${yearMonth}`),
+
+  saveSummary: (yearMonth: string, data: SummaryData) =>
+    request<SummaryData>(`/api/summary/${yearMonth}`, { method: 'PUT', body: JSON.stringify(data) }),
 };
+
+export interface MoneyInRow {
+  label: string;
+  amount: number;
+}
+
+export interface SummaryData {
+  recurringBudgets: Record<string, number>; // "Category|SubCategory" -> amount
+  oneoffBudgets: Record<string, number>;    // "Category" -> amount
+  salary: number;
+  fromPrevious: number;
+  moneyInRows: MoneyInRow[];
+}

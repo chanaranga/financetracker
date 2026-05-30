@@ -15,6 +15,7 @@ app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/summary', require('./routes/summary'));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 

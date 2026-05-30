@@ -31,6 +31,11 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS summary (
+    month TEXT PRIMARY KEY,
+    data  TEXT NOT NULL
+  );
 `);
 
 module.exports = db;
