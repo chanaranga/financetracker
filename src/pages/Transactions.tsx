@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import type { Transaction, DropdownSettings } from '../types';
 import { generateId } from '../store';
@@ -26,6 +26,55 @@ function fmt(n: number | null | undefined): string {
 function parseNum(s: string): number | null {
   const v = parseFloat(s.replace(',', '.'));
   return isNaN(v) ? null : v;
+}
+
+// Always display and accept DD/MM/YYYY regardless of OS locale
+function isoToDisplay(iso: string): string {
+  if (!iso || iso.length < 10) return iso;
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function displayToIso(display: string): string {
+  const parts = display.split('/');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    if (d.length <= 2 && m.length <= 2 && y.length === 4) {
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+  }
+  return '';
+}
+
+function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [raw, setRaw] = useState(() => isoToDisplay(value));
+
+  useEffect(() => { setRaw(isoToDisplay(value)); }, [value]);
+
+  function handleChange(v: string) {
+    const digits = v.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) formatted = `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4)}`;
+    else if (digits.length > 2) formatted = `${digits.slice(0,2)}/${digits.slice(2)}`;
+    setRaw(formatted);
+  }
+
+  function commit() {
+    const iso = displayToIso(raw);
+    if (iso) onChange(iso);
+    else setRaw(isoToDisplay(value));
+  }
+
+  return (
+    <input
+      className="table-cell-input"
+      value={raw}
+      placeholder="DD/MM/YYYY"
+      onChange={e => handleChange(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Tab') commit(); }}
+    />
+  );
 }
 
 // Recalculate End Balance = Start + Amount for every row in the month,
@@ -68,6 +117,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
   const [month, setMonth] = useState(now.getMonth() + 1);
   const fileRef = useRef<HTMLInputElement>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS);
+  const focusRowId = useRef<string | null>(null);
 
   function onResizeStart(key: string, e: React.MouseEvent) {
     e.preventDefault();
@@ -125,6 +175,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
       bankText: '',
       budgeted: '',
     };
+    focusRowId.current = newRow.id;
     const updated = recalcInMonth([...transactions, newRow], year, month);
     onChange(updated);
   }
@@ -280,12 +331,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
               >
                 {/* Date */}
                 <td style={{ width: colWidths.date, minWidth: colWidths.date }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
-                  <input
-                    className="table-cell-input"
-                    type="date"
-                    value={t.date}
-                    onChange={e => updateField(t.id, 'date', e.target.value)}
-                  />
+                  <DateInput value={t.date} onChange={v => updateField(t.id, 'date', v)} />
                 </td>
 
                 {/* Start Balance — editable only on first row */}
@@ -316,10 +362,18 @@ export default function Transactions({ transactions, settings, onChange }: Props
                 <td style={{ width: colWidths.amount, minWidth: colWidths.amount }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
                   <input
                     className={`table-cell-input text-right ${
-                      t.amount !== null && t.amount < 0 ? 'text-red-600' : 'text-green-700'
+                      t.amount !== null && t.amount < 0 ? 'text-red-600' :
+                      t.amount !== null && t.amount > 0 ? 'text-green-700' : ''
                     }`}
                     value={fmt(t.amount)}
                     onChange={e => updateField(t.id, 'amount', parseNum(e.target.value))}
+                    ref={el => {
+                      if (el && focusRowId.current === t.id) {
+                        el.focus();
+                        el.select();
+                        focusRowId.current = null;
+                      }
+                    }}
                   />
                 </td>
 
