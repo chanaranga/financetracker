@@ -22,6 +22,10 @@ const EMPTY_DATA: SummaryData = {
     { label: '', amount: 0 },
     { label: '', amount: 0 },
     { label: '', amount: 0 },
+    { label: '', amount: 0 },
+    { label: '', amount: 0 },
+    { label: '', amount: 0 },
+    { label: '', amount: 0 },
   ],
 };
 
@@ -77,7 +81,7 @@ function EditCell({ value, onChange }: EditCellProps) {
       onClick={start}
       title="Click to edit"
     >
-      {value > 0 ? fmt(value) : <span className="text-gray-300">0.00</span>}
+      {value !== 0 ? <span className={value < 0 ? 'text-red-600' : ''}>{fmt(value)}</span> : <span className="text-gray-300">0.00</span>}
     </td>
   );
 }
@@ -99,7 +103,11 @@ export default function Summary({ transactions }: Props) {
 
   // Load budget data when month changes
   useEffect(() => {
-    api.getSummary(yearMonth).then(setData);
+    api.getSummary(yearMonth).then(d => {
+      // Ensure at least 8 money-in rows
+      while (d.moneyInRows.length < 8) d.moneyInRows.push({ label: '', amount: 0 });
+      setData(d);
+    });
   }, [yearMonth]);
 
   // Debounced auto-save
@@ -280,27 +288,43 @@ export default function Summary({ transactions }: Props) {
         </table>
       </div>
 
-      {/* ── FINANCIAL SUMMARY ────────────────────────────────────── */}
+      {/* ── SALARY & BUDGET GAP ──────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden mb-4">
+        <div className="bg-slate-700 text-white px-4 py-2 text-sm font-semibold">Salary vs Budget</div>
+        <table className="w-full">
+          <tbody>
+            <SummaryRow label="Monthly Salary Chana">
+              <EditCell value={data.salary}
+                onChange={v => update({ ...data, salary: v })} />
+            </SummaryRow>
+            <SummaryRow label="Previous month">
+              <EditCell value={data.fromPrevious}
+                onChange={v => update({ ...data, fromPrevious: v })} />
+            </SummaryRow>
+            <DividerRow />
+            <CalcRow
+              label="Budget gap"
+              value={r2(data.salary - totalBudget - data.fromPrevious)}
+              bold
+              colored
+            />
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── MONTHLY OVERVIEW ─────────────────────────────────────── */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="bg-slate-700 text-white px-4 py-2 text-sm font-semibold">Monthly Overview</div>
         <table className="w-full">
           <tbody>
-            <SummaryRow label="Monthly Salary">
-              <EditCell value={data.salary}
-                onChange={v => update({ ...data, salary: v })} />
-            </SummaryRow>
-            <SummaryRow label="From previous month">
-              <EditCell value={data.fromPrevious}
-                onChange={v => update({ ...data, fromPrevious: v })} />
-            </SummaryRow>
-
+            <CalcRow label="Money available" value={r2(data.salary + data.fromPrevious)} />
             {/* Money in so far rows */}
             {data.moneyInRows.map((row, i) => (
               <tr key={i} className="border-b border-gray-100">
                 <td className="px-3 py-1.5 w-full">
                   <input
-                    className="text-sm text-gray-700 bg-transparent border-none w-full focus:outline-none focus:bg-blue-50 rounded px-1"
-                    placeholder="Money in so far — label"
+                    className="text-sm text-gray-700 bg-transparent border-none w-full focus:outline-none focus:bg-blue-50 rounded"
+                    placeholder="--empty--"
                     value={row.label}
                     onChange={e => {
                       const rows = data.moneyInRows.map((r, j) => j === i ? { ...r, label: e.target.value } : r);
