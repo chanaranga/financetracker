@@ -31,7 +31,6 @@ const EMPTY_DATA: SummaryData = {
 
 function r2(n: number) { return Math.round(n * 100) / 100; }
 function fmt(n: number) { return n.toFixed(2); }
-function abs(n: number | null) { return Math.abs(n ?? 0); }
 
 function BalanceCell({ value }: { value: number }) {
   const color = value >= 0 ? 'text-green-700' : 'text-red-600';
@@ -131,22 +130,29 @@ export default function Summary({ transactions }: Props) {
     return d.getFullYear() === year && d.getMonth() + 1 === month;
   });
 
-  // Recurring spend: type=Reccuring, budgeted=Yes → group by category|subCategory
-  const recurringSpend: Record<string, number> = {};
+  // Recurring spend — same filter as Analytics "Recurring Budgeted"
+  // Sum algebraically first (matches Analytics), then abs for display
+  const recurringRaw: Record<string, number> = {};
   filtered
     .filter(t => t.type === 'Reccuring' && t.budgeted === 'Yes')
     .forEach(t => {
       const key = `${t.category}|${t.subCategory}`;
-      recurringSpend[key] = r2((recurringSpend[key] ?? 0) + abs(t.amount));
+      recurringRaw[key] = (recurringRaw[key] ?? 0) + (t.amount ?? 0);
     });
+  const recurringSpend: Record<string, number> = Object.fromEntries(
+    Object.entries(recurringRaw).map(([k, v]) => [k, r2(Math.abs(v))])
+  );
 
-  // One-off spend: type=One off, budgeted=Yes → group by category
-  const oneoffSpend: Record<string, number> = {};
+  // One-off spend — same filter as Analytics "One-off Budgeted", grouped by category
+  const oneoffRaw: Record<string, number> = {};
   filtered
     .filter(t => t.type === 'One off' && t.budgeted === 'Yes')
     .forEach(t => {
-      oneoffSpend[t.category] = r2((oneoffSpend[t.category] ?? 0) + abs(t.amount));
+      oneoffRaw[t.category] = (oneoffRaw[t.category] ?? 0) + (t.amount ?? 0);
     });
+  const oneoffSpend: Record<string, number> = Object.fromEntries(
+    Object.entries(oneoffRaw).map(([k, v]) => [k, r2(Math.abs(v))])
+  );
 
   // ── Derive row lists from ALL transactions ─────────────────────────────────
   const recurringRows = Array.from(
