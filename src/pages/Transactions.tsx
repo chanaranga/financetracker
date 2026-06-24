@@ -205,13 +205,13 @@ export default function Transactions({ transactions, settings, onChange }: Props
           startBalance: (row['startsaldo'] as number) ?? null,
           endBalance: null,
           amount: (row['amount'] as number) ?? null,
-          type: '',
+          type: 'One off',
           category: '',
           subCategory: '',
           paidTo: '',
           comment: '',
           bankText: String(row['description'] ?? ''),
-          budgeted: '',
+          budgeted: 'Yes',
         };
       });
 
