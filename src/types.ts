@@ -29,7 +29,7 @@ export const DEFAULT_SETTINGS: DropdownSettings = {
   types: ['One off', 'Reccuring', 'Reccuring Plus'],
   categories: [
     'Bank', 'Car Lease', 'Day care', 'Groceries', 'Healthcare', 'Hobbies',
-    'Home', 'Insurance', 'Money In', 'Other', 'Restaurants', 'Savings',
+    'Home', 'Insurance', 'Money In', 'One off plus', 'Other', 'Restaurants', 'Savings',
     'Shopping', 'Shopping - Chana', 'Shopping - Liam', 'Shopping - Umesha',
     'Subscriptions', 'Travel', 'Utilities', 'Vacation',
   ],

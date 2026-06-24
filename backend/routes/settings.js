@@ -5,7 +5,7 @@ const { requireAuth } = require('../auth');
 
 const DEFAULT_SETTINGS = {
   types: ['One off', 'Reccuring', 'Reccuring Plus'],
-  categories: ['Bank','Car Lease','Day care','Groceries','Healthcare','Hobbies','Home','Insurance','Money In','Other','Restaurants','Savings','Shopping','Shopping - Chana','Shopping - Liam','Shopping - Umesha','Subscriptions','Travel','Utilities','Vacation'],
+  categories: ['Bank','Car Lease','Day care','Groceries','Healthcare','Hobbies','Home','Insurance','Money In','One off plus','Other','Restaurants','Savings','Shopping','Shopping - Chana','Shopping - Liam','Shopping - Umesha','Subscriptions','Travel','Utilities','Vacation'],
   subCategories: ['Apps','Bank Charges','Budget gap','Car','Car Charging','Clothes','Consumables','Day Care','Dine In','Electricity','Flying','Health','Heating','Internet','Investment','Life','Mobile','Mortgage','Other','Parking','Pharmacy','Salary','Savings','Scooter','Streaming','Super Market','Take out','Train','Umesha','VvE','Water'],
   budgetedOptions: ['Yes','No','WO'],
 };
