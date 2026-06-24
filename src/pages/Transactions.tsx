@@ -14,6 +14,8 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+const FILTERABLE = new Set(['type', 'category', 'subCategory', 'budgeted', 'paidTo', 'bankText']);
+
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -28,7 +30,6 @@ function parseNum(s: string): number | null {
   return isNaN(v) ? null : v;
 }
 
-// Always display and accept DD/MM/YYYY regardless of OS locale
 function isoToDisplay(iso: string): string {
   if (!iso || iso.length < 10) return iso;
   const [y, m, d] = iso.split('-');
@@ -77,8 +78,6 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   );
 }
 
-// Recalculate End Balance = Start + Amount for every row in the month,
-// cascading Start Balance from the previous row's End Balance (except row 0).
 function recalcInMonth(all: Transaction[], year: number, month: number): Transaction[] {
   const inMonth = all
     .filter(t => {
@@ -119,6 +118,25 @@ export default function Transactions({ transactions, settings, onChange }: Props
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS);
   const focusRowId = useRef<string | null>(null);
 
+  // Column filters: col -> selected values (undefined = no filter / all shown)
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [filterAnchor, setFilterAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [filterSearch, setFilterSearch] = useState('');
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+
+  // Close filter panel on outside click
+  useEffect(() => {
+    if (!openFilter) return;
+    function onDown(e: MouseEvent) {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
+        setOpenFilter(null);
+      }
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [openFilter]);
+
   function onResizeStart(key: string, e: React.MouseEvent) {
     e.preventDefault();
     const startX = e.clientX;
@@ -139,7 +157,8 @@ export default function Transactions({ transactions, settings, onChange }: Props
       ...transactions.map(t => t.date ? new Date(t.date).getFullYear() : now.getFullYear())])
   ).sort();
 
-  const filtered = transactions
+  // Month-filtered rows (before column filters)
+  const monthFiltered = transactions
     .filter(t => {
       if (!t.date) return false;
       const d = new Date(t.date);
@@ -147,11 +166,84 @@ export default function Transactions({ transactions, settings, onChange }: Props
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // Display rows: month filter + column filters
+  const displayRows = monthFiltered.filter(t => {
+    for (const [col, selected] of Object.entries(columnFilters)) {
+      if (!selected || selected.length === 0) continue;
+      const val = String(t[col as keyof Transaction] ?? '');
+      if (!selected.includes(val)) return false;
+    }
+    return true;
+  });
+
+  const hasActiveFilters = Object.values(columnFilters).some(v => v && v.length > 0);
+
+  // Unique values for a column, derived from the month-filtered set
+  function getUniqueVals(col: string): string[] {
+    const vals = new Set(monthFiltered.map(t => String(t[col as keyof Transaction] ?? '')));
+    return Array.from(vals).sort((a, b) => {
+      if (a === '') return 1;
+      if (b === '') return -1;
+      return a.localeCompare(b);
+    });
+  }
+
+  function openColumnFilter(col: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (openFilter === col) { setOpenFilter(null); return; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setFilterAnchor({ top: rect.bottom + 2, left: rect.left });
+    setFilterSearch('');
+    setOpenFilter(col);
+  }
+
+  function isValueChecked(col: string, val: string): boolean {
+    const sel = columnFilters[col];
+    if (!sel) return true;
+    return sel.includes(val);
+  }
+
+  function toggleValue(col: string, val: string) {
+    setColumnFilters(prev => {
+      const allVals = getUniqueVals(col);
+      const sel = prev[col] ?? allVals;
+      const next = sel.includes(val) ? sel.filter(v => v !== val) : [...sel, val];
+      if (next.length === allVals.length) {
+        const { [col]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function toggleSelectAll(col: string) {
+    setColumnFilters(prev => {
+      const allVals = getUniqueVals(col);
+      const sel = prev[col];
+      const allChecked = !sel || sel.length === allVals.length;
+      if (allChecked) {
+        return { ...prev, [col]: [] };
+      }
+      const { [col]: _, ...rest } = prev;
+      return rest;
+    });
+  }
+
+  function clearFilter(col: string) {
+    setColumnFilters(prev => {
+      const { [col]: _, ...rest } = prev;
+      return rest;
+    });
+  }
+
+  function clearAllFilters() {
+    setColumnFilters({});
+  }
+
   function updateField(id: string, field: keyof Transaction, value: string | number | null) {
     let updated = transactions.map(t =>
       t.id !== id ? t : { ...t, [field]: value } as Transaction
     );
-    // Recalculate balance chain whenever amount or first-row startBalance changes
     if (field === 'amount' || field === 'startBalance' || field === 'date') {
       updated = recalcInMonth(updated, year, month);
     }
@@ -159,7 +251,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
   }
 
   function addRow() {
-    const lastInMonth = filtered[filtered.length - 1];
+    const lastInMonth = monthFiltered[monthFiltered.length - 1];
     const dateStr = lastInMonth?.date ?? `${year}-${String(month).padStart(2, '0')}-01`;
     const newRow: Transaction = {
       id: generateId(),
@@ -241,6 +333,30 @@ export default function Transactions({ transactions, settings, onChange }: Props
     return [];
   }, [settings]);
 
+  const COLUMNS: [string, string][] = [
+    ['date',         'Date'],
+    ['startBalance', 'Start Bal'],
+    ['endBalance',   'End Bal'],
+    ['amount',       'Amount'],
+    ['type',         'Type'],
+    ['category',     'Category'],
+    ['subCategory',  'Sub Category'],
+    ['paidTo',       'Paid To'],
+    ['comment',      'Comment'],
+    ['bankText',     'Bank Text'],
+    ['budgeted',     'Budgeted'],
+  ];
+
+  // Active filter panel data
+  const activeFilterCol = openFilter;
+  const activeAllVals = activeFilterCol ? getUniqueVals(activeFilterCol) : [];
+  const activeSel = activeFilterCol ? columnFilters[activeFilterCol] : undefined;
+  const activeAllChecked = !activeSel || activeSel.length === activeAllVals.length;
+  const activeSomeChecked = !!(activeSel && activeSel.length > 0 && activeSel.length < activeAllVals.length);
+  const activeDisplayVals = filterSearch
+    ? activeAllVals.filter(v => v.toLowerCase().includes(filterSearch.toLowerCase()))
+    : activeAllVals;
+
   return (
     <div className="p-4">
       {/* Filters & Actions */}
@@ -272,10 +388,20 @@ export default function Transactions({ transactions, settings, onChange }: Props
           Import Bank File
         </button>
         <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={handleImport} />
+        {hasActiveFilters && (
+          <button
+            onClick={clearAllFilters}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Clear filters
+          </button>
+        )}
         <span className="text-sm text-gray-500 ml-auto">
-          {filtered.length} transactions
-          {filtered.length > 0 && (() => {
-            const total = filtered.reduce((s, t) => s + (t.amount ?? 0), 0);
+          {hasActiveFilters
+            ? `${displayRows.length} of ${monthFiltered.length} transactions`
+            : `${monthFiltered.length} transactions`}
+          {displayRows.length > 0 && (() => {
+            const total = displayRows.reduce((s, t) => s + (t.amount ?? 0), 0);
             return ` | Net: €${total.toFixed(2)}`;
           })()}
         </span>
@@ -286,43 +412,52 @@ export default function Transactions({ transactions, settings, onChange }: Props
         <table className="text-sm border-collapse min-w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200 select-none">
-              {([
-                ['date',         'Date'],
-                ['startBalance', 'Start Bal'],
-                ['endBalance',   'End Bal'],
-                ['amount',       'Amount'],
-                ['type',         'Type'],
-                ['category',     'Category'],
-                ['subCategory',  'Sub Category'],
-                ['paidTo',       'Paid To'],
-                ['comment',      'Comment'],
-                ['bankText',     'Bank Text'],
-                ['budgeted',     'Budgeted'],
-              ] as [string, string][]).map(([key, label]) => (
-                <th
-                  key={key}
-                  style={{ width: colWidths[key], minWidth: colWidths[key] }}
-                  className="relative px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 overflow-hidden"
-                >
-                  <span className="truncate block pr-2">{label}</span>
-                  <div
-                    className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
-                    onMouseDown={e => onResizeStart(key, e)}
-                  />
-                </th>
-              ))}
+              {COLUMNS.map(([key, label]) => {
+                const filterable = FILTERABLE.has(key);
+                const hasFilter = !!(columnFilters[key] && columnFilters[key].length > 0);
+                return (
+                  <th
+                    key={key}
+                    style={{ width: colWidths[key], minWidth: colWidths[key] }}
+                    className="relative px-2 py-2 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 overflow-hidden"
+                  >
+                    <div className="flex items-center gap-0.5 pr-2">
+                      <span className="truncate flex-1">{label}</span>
+                      {filterable && (
+                        <button
+                          onClick={e => openColumnFilter(key, e)}
+                          className={`flex-shrink-0 text-xs leading-none px-0.5 py-0.5 rounded transition-colors ${
+                            hasFilter
+                              ? 'text-blue-600 bg-blue-100 hover:bg-blue-200'
+                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
+                          }`}
+                          title={`Filter by ${label}`}
+                        >
+                          ▾
+                        </button>
+                      )}
+                    </div>
+                    <div
+                      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
+                      onMouseDown={e => onResizeStart(key, e)}
+                    />
+                  </th>
+                );
+              })}
               <th className="w-8 border-gray-200"></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {displayRows.length === 0 && (
               <tr>
                 <td colSpan={12} className="px-4 py-8 text-center text-gray-400">
-                  No transactions for {MONTHS[month - 1]} {year}. Add a row or import a bank file.
+                  {hasActiveFilters
+                    ? 'No transactions match the active filters.'
+                    : `No transactions for ${MONTHS[month - 1]} ${year}. Add a row or import a bank file.`}
                 </td>
               </tr>
             )}
-            {filtered.map((t, rowIdx) => (
+            {displayRows.map((t, rowIdx) => (
               <tr
                 key={t.id}
                 className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
@@ -444,6 +579,74 @@ export default function Transactions({ transactions, settings, onChange }: Props
           </tbody>
         </table>
       </div>
+
+      {/* Column filter panel */}
+      {openFilter && filterAnchor && activeFilterCol && (
+        <div
+          ref={filterPanelRef}
+          style={{ position: 'fixed', top: filterAnchor.top, left: filterAnchor.left, zIndex: 1000 }}
+          className="bg-white border border-gray-300 rounded-lg shadow-xl w-56"
+        >
+          {/* Search */}
+          <div className="p-2 border-b border-gray-200">
+            <input
+              autoFocus
+              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+              placeholder="Search…"
+              value={filterSearch}
+              onChange={e => setFilterSearch(e.target.value)}
+            />
+          </div>
+          {/* Select All */}
+          <div className="px-2 py-1.5 border-b border-gray-200">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={activeAllChecked}
+                ref={el => { if (el) el.indeterminate = activeSomeChecked; }}
+                onChange={() => toggleSelectAll(activeFilterCol)}
+                className="cursor-pointer"
+              />
+              <span className="text-xs font-medium text-gray-700">(Select All)</span>
+              <span className="ml-auto text-xs text-gray-400">{activeAllVals.length}</span>
+            </label>
+          </div>
+          {/* Value list */}
+          <div className="max-h-52 overflow-y-auto">
+            {activeDisplayVals.map(val => (
+              <label key={val} className="flex items-center gap-2 px-2 py-0.5 hover:bg-gray-50 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isValueChecked(activeFilterCol, val)}
+                  onChange={() => toggleValue(activeFilterCol, val)}
+                  className="cursor-pointer flex-shrink-0"
+                />
+                <span className="text-xs text-gray-700 truncate" title={val}>
+                  {val === '' ? <span className="text-gray-400 italic">(blank)</span> : val}
+                </span>
+              </label>
+            ))}
+            {activeDisplayVals.length === 0 && (
+              <div className="px-2 py-3 text-xs text-gray-400 text-center">No matches</div>
+            )}
+          </div>
+          {/* Footer */}
+          <div className="px-2 py-1.5 border-t border-gray-200 flex justify-between items-center">
+            <button
+              onClick={() => { clearFilter(activeFilterCol); setOpenFilter(null); }}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Clear
+            </button>
+            <button
+              onClick={() => setOpenFilter(null)}
+              className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
