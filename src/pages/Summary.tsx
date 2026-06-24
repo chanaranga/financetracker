@@ -91,6 +91,7 @@ export default function Summary({ transactions }: Props) {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<SummaryData>(EMPTY_DATA);
   const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
@@ -121,6 +122,27 @@ export default function Summary({ transactions }: Props) {
   function update(next: SummaryData) {
     setData(next);
     save(next);
+  }
+
+  async function copyFromPrevMonth() {
+    setCopying(true);
+    try {
+      const prevMonth = month === 1 ? 12 : month - 1;
+      const prevYear  = month === 1 ? year - 1 : year;
+      const prevYearMonth = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+      const prev = await api.getSummary(prevYearMonth);
+      const next: SummaryData = {
+        ...data,
+        recurringBudgets: { ...prev.recurringBudgets },
+        oneoffBudgets: { ...prev.oneoffBudgets },
+        salary: prev.salary,
+        moneyInRows: prev.moneyInRows.map(r => ({ ...r })),
+      };
+      while (next.moneyInRows.length < 8) next.moneyInRows.push({ label: '', amount: 0 });
+      update(next);
+    } finally {
+      setCopying(false);
+    }
   }
 
   // ── Calculate current spend from transactions ──────────────────────────────
@@ -201,6 +223,14 @@ export default function Summary({ transactions }: Props) {
           {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
         </select>
         {saving && <span className="text-xs text-gray-400 ml-2">Saving…</span>}
+        <button
+          onClick={copyFromPrevMonth}
+          disabled={copying || saving}
+          className="ml-auto px-3 py-1.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Copy budget figures from the previous month"
+        >
+          {copying ? 'Copying…' : '← Copy from previous month'}
+        </button>
       </div>
 
       <h1 className="text-lg font-bold text-gray-800 mb-4">Monthly Cost Summary — {MONTHS[month - 1]} {year}</h1>
