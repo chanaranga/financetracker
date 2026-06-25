@@ -20,6 +20,32 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Allows typing a negative sign before the digits without losing it
+function NumericInput({ value, onChange, className, inputRef }: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  className?: string;
+  inputRef?: (el: HTMLInputElement | null) => void;
+}) {
+  const [raw, setRaw] = useState<string | null>(null);
+  return (
+    <input
+      className={className}
+      value={raw !== null ? raw : fmt(value)}
+      onChange={e => {
+        setRaw(e.target.value);
+        const v = parseNum(e.target.value);
+        if (v !== null) onChange(v);
+      }}
+      onBlur={e => {
+        onChange(parseNum(e.target.value));
+        setRaw(null);
+      }}
+      ref={inputRef}
+    />
+  );
+}
+
 function fmt(n: number | null | undefined): string {
   if (n === null || n === undefined) return '';
   return n.toFixed(2);
@@ -495,14 +521,14 @@ export default function Transactions({ transactions, settings, onChange }: Props
 
                 {/* Amount */}
                 <td style={{ width: colWidths.amount, minWidth: colWidths.amount }} className="px-1 py-0.5 border-r border-gray-100 overflow-hidden">
-                  <input
+                  <NumericInput
                     className={`table-cell-input text-right ${
                       t.amount !== null && t.amount < 0 ? 'text-red-600' :
                       t.amount !== null && t.amount > 0 ? 'text-green-700' : ''
                     }`}
-                    value={fmt(t.amount)}
-                    onChange={e => updateField(t.id, 'amount', parseNum(e.target.value))}
-                    ref={el => {
+                    value={t.amount}
+                    onChange={v => updateField(t.id, 'amount', v)}
+                    inputRef={el => {
                       if (el && focusRowId.current === t.id) {
                         el.focus();
                         el.select();
