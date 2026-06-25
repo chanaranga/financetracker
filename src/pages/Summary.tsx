@@ -153,7 +153,7 @@ export default function Summary({ transactions }: Props) {
   });
 
   // Recurring spend — same filter as Analytics "Recurring Budgeted"
-  // Sum algebraically first (matches Analytics), then abs for display
+  // Negate so expenses (negative amounts) become positive spend, and positive amounts become negative spend
   const recurringRaw: Record<string, number> = {};
   filtered
     .filter(t => t.type === 'Reccuring' && t.budgeted === 'Yes')
@@ -162,7 +162,7 @@ export default function Summary({ transactions }: Props) {
       recurringRaw[key] = (recurringRaw[key] ?? 0) + (t.amount ?? 0);
     });
   const recurringSpend: Record<string, number> = Object.fromEntries(
-    Object.entries(recurringRaw).map(([k, v]) => [k, r2(Math.abs(v))])
+    Object.entries(recurringRaw).map(([k, v]) => [k, r2(-v)])
   );
 
   // One-off spend — same filter as Analytics "One-off Budgeted", grouped by category
@@ -173,7 +173,7 @@ export default function Summary({ transactions }: Props) {
       oneoffRaw[t.category] = (oneoffRaw[t.category] ?? 0) + (t.amount ?? 0);
     });
   const oneoffSpend: Record<string, number> = Object.fromEntries(
-    Object.entries(oneoffRaw).map(([k, v]) => [k, r2(Math.abs(v))])
+    Object.entries(oneoffRaw).map(([k, v]) => [k, r2(-v)])
   );
 
   // ── Derive row lists from ALL transactions ─────────────────────────────────
