@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import type { Transaction, DropdownSettings } from '../types';
-import { generateId } from '../store';
+import { generateId, recalcAllMonths } from '../store';
 
 interface Props {
   transactions: Transaction[];
@@ -333,27 +333,18 @@ export default function Transactions({ transactions, settings, onChange }: Props
         };
       });
 
-      const filteredImport = imported.filter(t => {
-        const d = new Date(t.date);
-        return d.getFullYear() === year && d.getMonth() + 1 === month;
-      });
-
       // Match by date+amount+bankText — only add rows not already present
       const existingKeys = new Set(
         transactions
-          .filter(t => {
-            if (!t.bankText) return false;
-            const d = new Date(t.date);
-            return d.getFullYear() === year && d.getMonth() + 1 === month;
-          })
+          .filter(t => t.bankText)
           .map(t => `${t.date}|${t.amount}|${t.bankText}`)
       );
 
-      const newRows = filteredImport.filter(
+      const newRows = imported.filter(
         t => !existingKeys.has(`${t.date}|${t.amount}|${t.bankText}`)
       );
 
-      const merged = recalcInMonth([...transactions, ...newRows], year, month);
+      const merged = recalcAllMonths([...transactions, ...newRows]);
       onChange(merged);
     };
     reader.readAsBinaryString(file);
