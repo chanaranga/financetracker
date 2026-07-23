@@ -333,6 +333,18 @@ export default function Transactions({ transactions, settings, onChange }: Props
         };
       });
 
+      if (rows.length === 0) {
+        alert('No rows found in file. Check the file format.');
+        return;
+      }
+
+      const firstRow = rows[0];
+      const cols = Object.keys(firstRow);
+      if (!cols.includes('transactiondate') || !cols.includes('amount') || !cols.includes('description')) {
+        alert(`Unexpected columns: ${cols.join(', ')}\n\nExpected: transactiondate, amount, description, startsaldo`);
+        return;
+      }
+
       // Match by date+amount+bankText — only add rows not already present
       const existingKeys = new Set(
         transactions
@@ -343,6 +355,19 @@ export default function Transactions({ transactions, settings, onChange }: Props
       const newRows = imported.filter(
         t => !existingKeys.has(`${t.date}|${t.amount}|${t.bankText}`)
       );
+
+      if (newRows.length === 0) {
+        alert('All rows in this file are already imported.');
+        return;
+      }
+
+      const byMonth = newRows.reduce<Record<string, number>>((acc, t) => {
+        const m = t.date.slice(0, 7);
+        acc[m] = (acc[m] ?? 0) + 1;
+        return acc;
+      }, {});
+      const summary = Object.entries(byMonth).map(([m, n]) => `${m}: ${n} rows`).join('\n');
+      alert(`Importing ${newRows.length} new rows:\n${summary}`);
 
       const merged = recalcAllMonths([...transactions, ...newRows]);
       onChange(merged);
