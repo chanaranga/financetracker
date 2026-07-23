@@ -333,18 +333,27 @@ export default function Transactions({ transactions, settings, onChange }: Props
         };
       });
 
-      const kept = transactions.filter(t => {
-        const d = new Date(t.date);
-        const sameMonth = d.getFullYear() === year && d.getMonth() + 1 === month;
-        return !sameMonth || t.bankText === '';
-      });
-
       const filteredImport = imported.filter(t => {
         const d = new Date(t.date);
         return d.getFullYear() === year && d.getMonth() + 1 === month;
       });
 
-      const merged = recalcInMonth([...kept, ...filteredImport], year, month);
+      // Match by date+amount+bankText — only add rows not already present
+      const existingKeys = new Set(
+        transactions
+          .filter(t => {
+            if (!t.bankText) return false;
+            const d = new Date(t.date);
+            return d.getFullYear() === year && d.getMonth() + 1 === month;
+          })
+          .map(t => `${t.date}|${t.amount}|${t.bankText}`)
+      );
+
+      const newRows = filteredImport.filter(
+        t => !existingKeys.has(`${t.date}|${t.amount}|${t.bankText}`)
+      );
+
+      const merged = recalcInMonth([...transactions, ...newRows], year, month);
       onChange(merged);
     };
     reader.readAsBinaryString(file);
