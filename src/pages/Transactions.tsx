@@ -141,6 +141,7 @@ export default function Transactions({ transactions, settings, onChange }: Props
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus] = useState<string>('');
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS);
   const focusRowId = useRef<string | null>(null);
 
@@ -334,14 +335,14 @@ export default function Transactions({ transactions, settings, onChange }: Props
       });
 
       if (rows.length === 0) {
-        alert('No rows found in file. Check the file format.');
+        setImportStatus('No rows found in file.');
         return;
       }
 
       const firstRow = rows[0];
       const cols = Object.keys(firstRow);
       if (!cols.includes('transactiondate') || !cols.includes('amount') || !cols.includes('description')) {
-        alert(`Unexpected columns: ${cols.join(', ')}\n\nExpected: transactiondate, amount, description, startsaldo`);
+        setImportStatus(`Unexpected columns: ${cols.join(', ')}`);
         return;
       }
 
@@ -357,20 +358,13 @@ export default function Transactions({ transactions, settings, onChange }: Props
       );
 
       if (newRows.length === 0) {
-        alert('All rows in this file are already imported.');
+        setImportStatus('All rows already imported.');
         return;
       }
 
-      const byMonth = newRows.reduce<Record<string, number>>((acc, t) => {
-        const m = t.date.slice(0, 7);
-        acc[m] = (acc[m] ?? 0) + 1;
-        return acc;
-      }, {});
-      const summary = Object.entries(byMonth).map(([m, n]) => `${m}: ${n} rows`).join('\n');
-      alert(`Importing ${newRows.length} new rows:\n${summary}`);
-
       const merged = recalcAllMonths([...transactions, ...newRows]);
       onChange(merged);
+      setImportStatus(`Imported ${newRows.length} new row${newRows.length === 1 ? '' : 's'}.`);
     };
     reader.readAsBinaryString(file);
     e.target.value = '';
@@ -439,6 +433,9 @@ export default function Transactions({ transactions, settings, onChange }: Props
           Import Bank File
         </button>
         <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={handleImport} />
+        {importStatus && (
+          <span className="text-sm text-gray-500">{importStatus}</span>
+        )}
         {hasActiveFilters && (
           <button
             onClick={clearAllFilters}
