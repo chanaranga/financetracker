@@ -6,7 +6,7 @@ DB_SOURCE="$HOME/financetracker/backend/data/finance.db"
 BACKUP_DIR="$HOME/financetracker/backups"
 BACKUP_FILE="$BACKUP_DIR/finance-$TIMESTAMP.db"
 GDRIVE_PATH="gdrive:Backups/financetracker"
-KEEP_DAYS=7
+KEEP_DAYS=30
 
 mkdir -p "$BACKUP_DIR"
 
